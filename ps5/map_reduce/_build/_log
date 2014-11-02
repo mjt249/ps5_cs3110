@@ -1,0 +1,14 @@
+### Starting build.
+# Target: controllerMain.ml.depends, tags: { extension:ml, file:controllerMain.ml, ocaml, ocamldep, package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o) }
+ocamlfind ocamldep -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -modules controllerMain.ml > controllerMain.ml.depends
+# Target: localController.mli.depends, tags: { extension:mli, file:localController.mli, ocaml, ocamldep, package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o) }
+ocamlfind ocamldep -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -modules localController.mli > localController.mli.depends
+# Target: mapReduce.mli.depends, tags: { extension:mli, file:mapReduce.mli, ocaml, ocamldep, package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o) }
+ocamlfind ocamldep -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -modules mapReduce.mli > mapReduce.mli.depends
+# Target: mapReduce.cmi, tags: { byte, compile, extension:mli, file:mapReduce.mli, interf, ocaml, package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o) }
+ocamlfind ocamlc -c -warn-error +a-4-33-34-40-41-42-43-44 -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -o mapReduce.cmi mapReduce.mli
++ ocamlfind ocamlc -c -warn-error +a-4-33-34-40-41-42-43-44 -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -o mapReduce.cmi mapReduce.mli
+File "mapReduce.mli", line 3, characters 0-14:
+Error: Unbound module Async
+Command exited with code 2.
+# Compilation unsuccessful.

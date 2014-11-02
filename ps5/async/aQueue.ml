@@ -1,12 +1,16 @@
 open Async.Std
 
-type 'a t
+type 'a t = 'a Pipe.Reader.t * 'a Pipe.Writer.t
 
-let create () =
-  failwith "I'm tiwed.  Tiwed of playing the game"
 
-let push q x =
-  failwith "Ain't it a cryin shame?"
+let create () : 'a t =
+  Pipe.create ()
 
-let pop  q =
-  failwith "I'm so tiwed."
+let push (q: 'a t) (x: 'a) : unit =
+  don't_wait_for (Pipe.write (snd q) x)
+
+let pop  (q: 'a t): 'a Deferred.t = 
+  (Pipe.read (fst q)) >>= 
+  (fun queue -> match queue with
+                | `Eof -> failwith "Pipe is closed."
+                | `Ok value-> return value)
