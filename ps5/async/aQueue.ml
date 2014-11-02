@@ -7,7 +7,7 @@ let create () : 'a t =
   Pipe.create ()
 
 let push (q: 'a t) (x: 'a) : unit =
-  ignore(Pipe.write (snd q) x)
+  don't_wait_for (Pipe.write (snd q) x)
 
 let pop  (q: 'a t): 'a Deferred.t = 
   (Pipe.read (fst q)) >>= (fun read_q ->
