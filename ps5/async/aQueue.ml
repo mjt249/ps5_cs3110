@@ -1,12 +1,14 @@
 open Async.Std
 
-type 'a t
+type 'a t = 'a Pipe.Reader.t * 'a Pipe.Writer.t
 
 let create () =
-  failwith "I'm tiwed.  Tiwed of playing the game"
+  Pipe.create ()
 
 let push q x =
-  failwith "Ain't it a cryin shame?"
+  ignore(Pipe.write (snd q) x )
 
 let pop  q =
-  failwith "I'm so tiwed."
+  Pipe.read (fst q) >>= fun contents -> match contents with 
+  | `Eof -> failwith "Pipe is empty"
+  | `Ok x -> return x

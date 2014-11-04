@@ -1,7 +1,8 @@
 open Async.Std
 
 let fork d f1 f2 =
-  failwith "My mind is aglow with whirling, transient nodes of thought..."
+  match d >>= fun x -> return (f1 x, f2 x)  with
+  | _ -> ()
 
 let deferred_map l f =
-  failwith "Ditto."
+  List.fold_right (fun x acc -> f x >>= (fun h -> acc >>= (fun t -> return (h::t)))) l (return [])
