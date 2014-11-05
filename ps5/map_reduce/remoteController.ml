@@ -90,14 +90,12 @@ module Make (Job : MapReduce.Job) = struct
             (`Ok (ReduceResult output)) -> 
               reduced_result >>= fun results -> 
               (*adding response pairs to list*)
-              (*I'm flattening the list here already. should I not flatten and do
-              >>| List.flatten later in the if clause above?*)
               results := ((key, output)::results);
               (*number of inputs successfully mapped and added*)
               number_of_pairs_reduced := number_of_pairs_reduced + 1;
               push idle_worker_aQueue (s, r, w);
               read_reduce_response
-          (*will be JobFailed because this Queue only had map requests.
+          (*will be JobFailed because this Queue only had reduce requests.
             need a way to find out which input JobFailes came from before I can send the input to another worker.*)
             | _ -> read_reduce_response in
 
@@ -106,6 +104,6 @@ module Make (Job : MapReduce.Job) = struct
     read_map_response >>=
     send_reduce_requests >>=
     send_reduce_requests >>=
-    
+    uhhhhhh whhhat
 end
 
