@@ -27,7 +27,8 @@ module Make (Job : MapReduce.Job) = struct
 
   let map_reduce inputs = 
     let idle_worker_aQueue = create () in
-    let busy_worker_aQueue = create () in
+    let mapping_worker_aQueue = create () in
+    let reducing_worker_aQueue = create () in
     let map_response = ref (return []) in
     let number_of_inputs_mapped = ref 0 in
     let shuffled_maps = ref (return []) in
@@ -47,13 +48,13 @@ module Make (Job : MapReduce.Job) = struct
     (*sending map requests and enqueueing map workers*)
     Deferred.List.iter ~how:`Parallel inputs ~f:(fun input ->
      return ( (pop worker_aQueue) >>= fun (s, r, w) -> 
-    	Request.send w (Request.MapRequest input); push busy_worker_aQueue (s, r, w))) in
-    (*read map results from busy workers*)
+    	Request.send w (Request.MapRequest input); push mapping_worker_aQueue (s, r, w))) in
+    (*read map results from mapping workers*)
 
     let send_reduce_requests : unit -> unit Deferred.t = fun () ->
-      Deferred.List.iter ~how:`Parallel (!shuffuled_maps) ~f:(fun (key, lst) -> 
+      Deferred.List.iter ~how:`Parallel (!shuffled_maps) ~f:(fun (key, lst) -> 
       	return ( (pop idle_worker_aQueue) >>= fun (s, r, w) -> 
-    	  Request.send w (Request.ReduceRequest pair); push busy_worker_aQueue (key ,(s, r, w))) in
+    	  Request.send w (Request.ReduceRequest pair); push reducing_worker_aQueue (key ,(s, r, w))) in
     
 
     let rec read_map_response : unit -> unit Deferred.t = fun () ->
@@ -62,10 +63,10 @@ module Make (Job : MapReduce.Job) = struct
         (*shuffule map_response!!*)
         shuffled_maps := ((!map_response) 
                           >>| Combine.combine);
-        number_of_keys := List.length(!shuffuled_maps);
+        number_of_keys := List.length(!shuffled_maps);
         return ()
       else
-        pop busy_worker_aQueue >>= fun (s, r, w) -> 
+        pop mapping_worker_aQueue >>= fun (s, r, w) -> 
           Response.receive r >>= fun res -> function
             (`Ok (MapResult pairs)) -> 
               map_response >>= fun mappings -> 
@@ -81,11 +82,11 @@ module Make (Job : MapReduce.Job) = struct
             need a way to find out which input JobFailes came from before I can send the input to another worker.*)
             | _ -> read_map_response in
 
-    let rec read_reduce_response: unit -> unit Deferred.t = fun () ->
+    let rec read_reduce_response: unit -> (MapReduce.Job.key * MapReduce.Job.output) list Deferred.t = fun () ->
       if ((!number_of_pairs_reduced) = (!number_of_keys)) then 
-        return ()
+         return (!results)
       else
-        pop busy_worker_aQueue >>= fun (key, (s, r, w)) -> 
+        pop reducing_worker_aQueue >>= fun (key, (s, r, w)) -> 
           Response.receive r >>= fun res -> function
             (`Ok (ReduceResult output)) -> 
               reduced_result >>= fun results -> 
@@ -103,7 +104,6 @@ module Make (Job : MapReduce.Job) = struct
     send_map_requests >>=
     read_map_response >>=
     send_reduce_requests >>=
-    send_reduce_requests >>=
-    uhhhhhh whhhat
+    read_reduce_requests 
 end
 
