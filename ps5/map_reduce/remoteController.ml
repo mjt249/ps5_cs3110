@@ -49,8 +49,9 @@ module Make (Job : MapReduce.Job) = struct
     let connect_wrapper worker_id =
       try_with (fun () -> (Tcp.connect worker_id)) 
         >>| (function
-              | Core.Std.Ok connected -> push idle_workers connected;
-                                         num_idle := !num_idle +1 
+              | Core.Std.Ok (s,r,w) -> Writer.write_line w Job.name;
+                                       push idle_workers (s,r,w);
+                                       num_idle := !num_idle +1 
               | Core.Std.Error _ -> () ) in
     
     let connect_workers : unit -> unit Deferred.t = fun () ->
@@ -75,7 +76,7 @@ module Make (Job : MapReduce.Job) = struct
         combined_result := ((!map_result) 
         	              >>| List.flatten
                         >>| Combine.combine);
-        !combined_result >>= fun num ->
+        !combined_result >>= fun num -> 
         num_keys := List.length(num);
         Deferred.List.iter ~how:`Parallel num ~f: fun el -> return(push key_q el)
       else if ((!num_input > 0) && (!num_idle > 0)) then 
