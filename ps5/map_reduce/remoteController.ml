@@ -37,9 +37,7 @@ module Make (Job : MapReduce.Job) = struct
     let num_reducer = ref 0 in
 
     let map_result = ref (return []) in
-
     let combined_result = ref (return []) in
-    
     let reduced_result = ref (return []) in
 
     let input_q = create () in
@@ -51,94 +49,93 @@ module Make (Job : MapReduce.Job) = struct
     let connect_wrapper worker_id =
       try_with (fun () -> (Tcp.connect worker_id)) 
         >>| (function
-        | Core.Std.Ok connected -> push idle_workers (worker_id, connected);
-                                   num_idle := !num_idle +1 
-        | Core.Std.Error _ -> () ) in
+              | Core.Std.Ok connected -> push idle_workers connected;
+                                         num_idle := !num_idle +1 
+              | Core.Std.Error _ -> () ) in
     
     let connect_workers : unit -> unit Deferred.t = fun () ->
-    (*connects workers and enqueues them*)
       Deferred.List.iter ~how:`Parallel (!worker_ides) ~f: connect_wrapper in
 
     let enqueue_inputs : unit -> unit Deferred.t = fun () ->
-      Deferred.List.iter ~how:`Parallel inputs ~f: fun input -> return(push input_q input ) in
+      Deferred.List.iter ~how:`Parallel inputs 
+        ~f: fun input -> return(push input_q input ) in
 
     let map_helper input = function
-      (worker_id, (s, r, w)) -> 
+      (s, r, w) -> 
           Request.send w (Request.MapRequest input); 
-          num_mapper := !num_mapper +1;
-          return (push map_workers (input, (worker_id, (s, r, w)))) in
+          num_mapper := !num_mapper +1; 
+          num_idle := !num_idle -1;
+          return (push map_workers (input, (s, r, w))) in
     
     let rec map_phase: unit -> unit Deferred.t = fun () ->
       if ((!num_idle = 0) && (!num_mapper = 0)) then
         raise InfrastructureFailure
       else if ((!num_input = 0) && (!num_mapper = 0)) then
         !map_result >>= fun res_list ->
-        (*shuffle map_result!!*)
         combined_result := ((!map_result) 
         	              >>| List.flatten
-                          >>| Combine.combine);
+                        >>| Combine.combine);
         !combined_result >>= fun num ->
         num_keys := List.length(num);
-        return ()
+        Deferred.List.iter ~how:`Parallel num ~f: fun el -> return(push key_q el)
       else if ((!num_input > 0) && (!num_idle > 0)) then 
         pop input_q >>= fun input ->
-        pop idle_workers >>= map_helper input 
-        >>= fun _ -> 
-        num_idle := !num_idle -1;
         num_input := !num_input -1;
-        map_phase ()
+        pop idle_workers >>= map_helper input
+        >>= map_phase 
       else if ((!num_input = 0) || (!num_idle = 0)) then
-        pop map_workers >>= fun (input, (worker_id, (s, r, w))) -> 
+        pop map_workers >>= fun (input, (s, r, w)) -> 
           num_mapper := !num_mapper - 1;
           (Response.receive r)>>= function 
             |(`Ok (Response.MapResult key_inter_pair_list)) -> 
               !map_result >>= fun mappings -> 
               map_result := return(key_inter_pair_list::mappings);
-              connect_wrapper worker_id >>= fun _ ->
+              push idle_workers (s, r, w); 
+              num_idle := !num_idle +1;
               map_phase ()
-            |(`Ok Response.ReduceResult _ )-> failwith "map queue is confused... it's reducing" 
-            | _ -> push input_q input;
+            |(`Ok Response.ReduceResult _ )-> 
+              failwith "map queue is confused... it's reducing" 
+            | _ -> don't_wait_for (Reader.close r);
+                   push input_q input;
                    num_input := !num_input +1;
                    map_phase()
        else
          failwith "map gone wrong" in
 
-
-    let enqueue_keys : unit -> unit Deferred.t = fun () ->
-      !combined_result >>= fun lst ->
-      Deferred.List.iter ~how:`Parallel lst ~f: fun el -> return(push key_q el) in
-
     let reduce_helper key lst = function
-      (worker_id, (s, r, w)) ->
+      (s, r, w) ->
     	  Request.send w (Request.ReduceRequest (key, lst) );
-          num_reducer := !num_reducer +1;
-    	  return (push reduce_workers (key, lst, (worker_id, (s, r, w)))) in
+        num_reducer := !num_reducer +1;
+        num_idle := !num_idle -1;
+    	  return (push reduce_workers (key, lst, (s, r, w))) in
 
     let rec reduce_phase : unit -> (Job.key * Job.output) list Deferred.t = fun () ->
-      if ((!num_idle = 0) && (!num_reducer = 0)) then
-        raise InfrastructureFailure
-      else if ((!num_keys = 0) && (!num_reducer = 0)) then 
+      if ((!num_keys = 0) && (!num_reducer = 0) && (!num_idle > 0)) then 
+        pop idle_workers >>= fun (s, r, w) ->
+        don't_wait_for(Writer.close w);
+        reduce_phase ()
+      else if ((!num_keys = 0) && (!num_reducer = 0) && (!num_idle = 0)) then 
         !reduced_result
+      else if ((!num_idle = 0) && (!num_reducer = 0)) then
+        raise InfrastructureFailure
       else if ((!num_keys > 0) && (!num_idle > 0)) then 
         pop key_q >>= fun (key, lst) ->
-        pop idle_workers >>= (reduce_helper key lst)
-        >>= fun _ -> 
-        num_idle := !num_idle -1;
         num_keys := !num_keys -1;
-        reduce_phase ()
+        pop idle_workers >>= reduce_helper key lst
+        >>= reduce_phase 
       else if ((!num_keys = 0) || (!num_idle = 0)) then
-        pop reduce_workers >>= fun (key, lst, (worker_id, (s, r, w))) -> 
+        pop reduce_workers >>= fun (key, lst, (s, r, w)) -> 
           Response.receive r >>= function
             |(`Ok (Response.ReduceResult output)) -> 
               !reduced_result >>= fun results -> 
-              (*adding response pairs to list*)
               reduced_result := return((key, output)::results);
-              connect_wrapper worker_id >>= fun _ ->
+              push idle_workers (s, r, w); 
+              num_idle := !num_idle +1;
               reduce_phase ()
-          (*will be JobFailed because this Queue only had reduce requests.
-            need a way to find out which input JobFailes came from before I can send the input to another worker.*)
-            |(`Ok Response.MapResult _ )-> failwith "reduce queue is confused... it's mapping" 
-            | _ -> push key_q (key, lst);
+            |(`Ok Response.MapResult _ )-> 
+              failwith "reduce queue is confused... it's mapping" 
+            | _ -> don't_wait_for (Reader.close r);
+                   push key_q (key, lst);
                    num_keys := !num_keys +1;
                    reduce_phase()
        else
@@ -147,7 +144,6 @@ module Make (Job : MapReduce.Job) = struct
     connect_workers () >>=
     enqueue_inputs >>=
     map_phase >>=
-    enqueue_keys >>=
     reduce_phase
 end
 
