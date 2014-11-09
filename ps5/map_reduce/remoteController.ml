@@ -113,6 +113,7 @@ module Make (Job : MapReduce.Job) = struct
     let rec reduce_phase : unit -> (Job.key * Job.output) list Deferred.t = fun () ->
       if ((!num_keys = 0) && (!num_reducer = 0) && (!num_idle > 0)) then 
         pop idle_workers >>= fun (s, r, w) ->
+        num_idle := !num_idle -1;
         don't_wait_for(Writer.close w);
         reduce_phase ()
       else if ((!num_keys = 0) && (!num_reducer = 0) && (!num_idle = 0)) then 
@@ -126,6 +127,7 @@ module Make (Job : MapReduce.Job) = struct
         >>= reduce_phase 
       else if ((!num_keys = 0) || (!num_idle = 0)) then
         pop reduce_workers >>= fun (key, lst, (s, r, w)) -> 
+          num_reducer := !num_reducer -1;
           Response.receive r >>= function
             |(`Ok (Response.ReduceResult output)) -> 
               !reduced_result >>= fun results -> 

@@ -10,7 +10,7 @@ module Make (Job : MapReduce.Job) = struct
   let rec run (r : Reader.t) (w : Writer.t) : unit Deferred.t =
     JobRequest.receive r >>= (fun res -> 
       match res with
-      | `Eof -> return() (* failwith "Error, pipe is closed." *)
+      | `Eof -> return() 
       | `Ok (JobRequest.MapRequest input) -> 
           let work = Job.map input in
           try_with (fun () -> work) 
@@ -48,7 +48,7 @@ let init port =
         | `Eof    -> return ()
         | `Ok job -> match MapReduce.get_job job with
           | None -> return ()
-          | Some j ->
+          | Some j -> 
             let module Job = (val j) in
             let module Worker = Make(Job) in
             Worker.run r w
