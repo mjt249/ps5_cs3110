@@ -6,9 +6,9 @@ module Make (Job : MapReduce.Job) = struct
   module JobResponse = Protocol.WorkerResponse(Job)
   module JobRequest = Protocol.WorkerRequest(Job)
 
-  (* see .mli *)
-  let run (r : Reader.t) (w : Writer.t) : unit Deferred.t =
-    JobRequest.receive r >>= (fun res -> 
+  let compute_single_request (r : Reader.t) (w : Writer.t) : unit Deferred.t = 
+    JobRequest.receive r 
+    >>= (fun res -> 
       match res with
       | `Eof -> failwith "Error, pipe is closed."
       | `Ok (JobRequest.MapRequest input) -> 
@@ -17,24 +17,28 @@ module Make (Job : MapReduce.Job) = struct
           >>| (function
           | Core.Std.Ok determined_work -> 
               let response  = JobResponse.(MapResult determined_work) in
-              JobResponse.send w response; 
-              don't_wait_for (Reader.close r)
+              (JobResponse.send w response)
           | Core.Std.Error ex -> 
               let response = JobResponse.(JobFailed (Printexc.to_string ex)) in
-              JobResponse.send w response;
-              don't_wait_for (Reader.close r))
-      | `Ok (JobRequest.ReduceRequest (key, lst)) -> 
+              (JobResponse.send w response))
+      | `Ok (JobRequest.ReduceRequest (key, lst)) ->
           let work = Job.reduce (key, lst) in
           try_with (fun () -> work) 
           >>| (function
           | Core.Std.Ok determined_work -> 
               let response  = JobResponse.(ReduceResult determined_work) in
-              JobResponse.send w response; 
-              don't_wait_for (Reader.close r)
+              (JobResponse.send w response)
           | Core.Std.Error ex -> 
               let response = JobResponse.(JobFailed (Printexc.to_string ex)) in
-              JobResponse.send w response;
-              don't_wait_for (Reader.close r)))
+              (JobResponse.send w response)))
+
+  (* see .mli *)
+  let run (r : Reader.t) (w : Writer.t) : unit Deferred.t =
+    while true do
+      ignore( compute_single_request r w 
+      >>= (fun _ -> return ()))
+    done;
+    return ()
 end
 
 (* see .mli *)
