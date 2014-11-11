@@ -38,7 +38,7 @@ module Make (Job : MapReduce.Job) = struct
 
     let map_result = ref (return []) in
     let combined_result = ref (return []) in
-    let reduced_result = ref (return []) in
+    let reduced_result = ref [] in
 
     let input_q = create () in
     let num_input = ref (List.length(inputs)) in
@@ -82,9 +82,9 @@ module Make (Job : MapReduce.Job) = struct
       else if ((!num_input > 0) && (!num_idle > 0)) then 
         pop input_q >>= fun input ->
         num_input := !num_input -1;
-        pop idle_workers >>= map_helper input
-        >>= map_phase 
-      else if ((!num_input = 0) || (!num_idle = 0)) then
+        don't_wait_for(pop idle_workers >>= map_helper input);
+        map_phase () 
+      else if (!num_mapper > 0) then
         pop map_workers >>= fun (input, (s, r, w)) -> 
           num_mapper := !num_mapper - 1;
           (Response.receive r)>>= function 
@@ -96,7 +96,7 @@ module Make (Job : MapReduce.Job) = struct
               map_phase ()
             |(`Ok Response.ReduceResult _ )-> 
               failwith "map queue is confused... it's reducing" 
-            | _ -> don't_wait_for (Reader.close r);
+            | _ -> don't_wait_for (Writer.close w);
                    push input_q input;
                    num_input := !num_input +1;
                    map_phase()
@@ -117,21 +117,20 @@ module Make (Job : MapReduce.Job) = struct
         don't_wait_for(Writer.close w);
         reduce_phase ()
       else if ((!num_keys = 0) && (!num_reducer = 0) && (!num_idle = 0)) then 
-        !reduced_result
+        return(!reduced_result)
       else if ((!num_idle = 0) && (!num_reducer = 0)) then
         raise InfrastructureFailure
       else if ((!num_keys > 0) && (!num_idle > 0)) then 
         pop key_q >>= fun (key, lst) ->
         num_keys := !num_keys -1;
-        pop idle_workers >>= reduce_helper key lst
-        >>= reduce_phase 
-      else if ((!num_keys = 0) || (!num_idle = 0)) then
+        don't_wait_for(pop idle_workers >>= reduce_helper key lst);
+        reduce_phase ()
+      else if (!num_reducer > 0) then
         pop reduce_workers >>= fun (key, lst, (s, r, w)) -> 
           num_reducer := !num_reducer -1;
           Response.receive r >>= function
             |(`Ok (Response.ReduceResult output)) -> 
-              !reduced_result >>= fun results -> 
-              reduced_result := return((key, output)::results);
+              reduced_result := ((key, output)::(!reduced_result));
               push idle_workers (s, r, w); 
               num_idle := !num_idle +1;
               reduce_phase ()

@@ -10,3 +10,4 @@ let deferred_map (l: 'a list) (f: 'a -> 'b Deferred.t): 'b list Deferred.t =
     acc >>= fun lst ->
       return (v::lst) in
   List.fold_right (fold_help) l (return [])
+

@@ -8,18 +8,54 @@ type filename = string
 (******************************************************************************)
 
 module Job = struct
-  type input
-  type key
-  type inter
-  type output
+  type line = string 
+  type file = string
+  type word  = string
+  
+  type input = line * file
+  type key = word
+  type inter = file
+  type output = file list
 
   let name = "index.job"
 
-  let map input : (key * inter) list Deferred.t =
-    failwith "I'm stepping through the door / And I'm floating in a most peculiar way / And the stars look very different today"
+  module M = Map.Make(String)
 
+  let tag (f:file) table (k:key) = 
+    if M.mem k table 
+    then table
+    else M.add k f table 
+
+  (*
+   *Given element and list, appends to the list if the element is not in list.
+   *Argument      : l ('a list) and el ('a)
+   *Precondition  : l is a list of type equal to type of el
+   *Postcondition : Output has no extra el.
+   *)
+  let append_if_not_exists (l: 'a list) (el: 'a) : 'a list = 
+    if (List.mem el l) then
+      l
+    else
+      [el] @ l
+
+  (*
+   *Removes duplicates in the list
+   *Argument      : l ('a list)
+   *Precondition  : l is of type 'a list
+   *Postcondition : l has no duplicates and is of type 'a list
+   *)
+  let remove_dups (l: 'a list) : 'a list =
+    List.fold_left append_if_not_exists [] l
+
+  let map input : (key * inter) list Deferred.t =
+    let words = AppUtils.split_words (fst input) in
+    let map_input = List.fold_left (tag (snd input)) M.empty words in
+    return (M.bindings map_input)
+
+  (* Remove duplicates in the inter list since the words might appear
+   * multiple times in the same file *)
   let reduce (key, inters) : output Deferred.t =
-    failwith "Here am I floating round my tin can / Far above the Moon / Planet Earth is blue / And there's nothing I can do."
+    return (remove_dups inters)
 end
 
 (* register the job *)
@@ -58,10 +94,29 @@ module App  = struct
   module Make (Controller : MapReduce.Controller) = struct
     module MR = Controller(Job)
 
+    let file_line_pair file_name =
+      Reader.file_lines file_name 
+      >>= (fun line_list -> Deferred.List.map line_list 
+                            (fun line -> return (line, file_name)))
+
+    let read_files file_list =
+      match file_list with
+      | [] -> failwith "No files in master list."
+      | lst -> Deferred.List.map lst file_line_pair
+
+      
     (** The input should be a single file name.  The named file should contain
         a list of files to index. *)
     let main args =
-      failwith "Can you hear me, Major Zardoz? Can you hear me, Major Zardoz? Can you hear me, Major Zardoz?"
+      match args with
+      | []  -> failwith "No master file provided."
+      | [file_list] -> 
+          Reader.file_lines file_list
+          >>= read_files
+          >>| List.flatten
+          >>= MR.map_reduce
+          >>| output
+      | _ -> failwith "Invalid number of arguments."
   end
 end
 

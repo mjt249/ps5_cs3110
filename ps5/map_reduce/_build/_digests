@@ -1,0 +1,6 @@
+"Rule: ocaml dependencies mli (%=mapReduce )": "\190d\228iE\181\138\223=9m<\185?\179\156"
+"Resource: /media/sf_CS3110/PS5/map_reduce/localController.mli": "s\"):\175\169u\241{\172\011\255\161\234\132m"
+"Rule: ocaml dependencies mli (%=localController )": "p|\180\200\130]\236\250\171!\150\196\221N\158\193"
+"Resource: /media/sf_CS3110/PS5/map_reduce/mapReduce.mli": "2\b\155W\212\191\2452|\230\241?+\r\183\018"
+"Resource: /media/sf_CS3110/PS5/map_reduce/controllerMain.ml": "]\217Y\233\161q\\\235\230$\000\177\233\172\204\007"
+"Rule: ocaml dependencies ml (%=controllerMain )": "\025}H\147\213a\133\2079\159\181:\138\173,\138"

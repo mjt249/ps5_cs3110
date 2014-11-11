@@ -68,4 +68,3 @@ let _ = fork_example ()
 (** Start the async scheduler *)
 let _ =
   Scheduler.go ()
-
