@@ -1,10 +1,19 @@
 open Async.Std
+open Protocol
 
 module Make (Job : MapReduce.Job) = struct
 
+  module JobRequest = WorkerRequest(Job)
+  module JobResponse = WorkerResponse(Job)
+
   (* see .mli *)
   let run r w =
-    failwith "Nowhere special?  I always wanted to go there."
+    JobRequest.receive r >>= fun contents -> 
+      match contents with 
+      | `Eof -> failwith "Pipe is closed"
+      | `Ok (JobRequest.MapRequest input) -> 
+	 let mapped = Job.map input in 
+      | `Ok (JobRequest.ReduceRequest (key, inter)) -> return ()
 
 end
 

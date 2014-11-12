@@ -2,17 +2,50 @@ open Async.Std
 
 module Job = struct
   type input  = string * string list
-  type key    = unit (* TODO: choose an appropriate type *)
-  type inter  = unit (* TODO: choose an appropriate type *)
+  type key    = string * string
+  type inter  = string list
   type output = string list
 
+  let rec find_other_nodes friendlist node = 
+    match friendlist with
+    | [] -> []
+    | hd::tl when hd <> node -> hd::(find_other_nodes tl node)
+    | hd::tl -> find_other_nodes tl node
+
+  let rec compute_pairs name friendlist =
+    match friendlist with
+    | [] -> []
+    | hd::tl when compare name hd = -1 -> 
+       ((name, hd), find_other_nodes friendlist hd)::(compute_pairs name tl)
+    | hd::tl -> ((hd, name), find_other_nodes friendlist hd)::(compute_pairs name tl)
+
   let name = "friends.job"
-
+  (* string * string list -> (key * inter) list Deferred.t  
+     gets passed name of root node and list of all connected nodes 
+     should I compute all pairs?
+   *)
   let map (name, friendlist) =
-    failwith "TODO"
+    let sorted_list = List.fast_sort compare friendlist in 
+    return (compute_pairs name sorted_list)
 
-  let reduce (_, friendlists) =
-    failwith "TODO"
+  let rec reduce_helper (pair, friendlists) = 
+    (* inter list should only ever have length 2 *)
+    match friendlists with
+    | [] -> []
+    | []::[] -> []
+    | [hd::tl]::[] -> []
+    | []::[hd::tl] -> []
+    | [hd::tl]::[x::xs]::[] -> if compare hd x = 0 then hd::(reduce_helper (pair, [tl]::[[xs]]))
+			   else if compare hd x = -1 then reduce_helper (pair, [tl]::[[x::xs]])
+			   else reduce_helper (pair, [hd::tl]::[[xs]])
+    | _ -> failwith "Invalid list size"
+  (* (key * inter list) -> string list Deferred.t 
+     should take in lists of pairs and see if they match any other pair or something
+   *)
+  let reduce (pair, friendlists) =
+    return (reduce_helper (pair, friendlists))
+      
+
 end
 
 let () = MapReduce.register_job (module Job)
@@ -55,7 +88,7 @@ module App = struct
         >>= MR.map_reduce
         (* replace this failwith with print once you've figured out the key and
            inter types*)
-        >>| fun _ -> failwith "TODO"
+        >>| fun x -> print x
   end
 end
 

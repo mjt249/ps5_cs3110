@@ -10,5 +10,5 @@ let push q x =
 
 let pop  q =
   Pipe.read (fst q) >>= fun contents -> match contents with 
-  | `Eof -> failwith "Pipe is empty"
+  | `Eof -> failwith "Pipe is closed"
   | `Ok x -> return x

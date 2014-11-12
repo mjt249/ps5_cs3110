@@ -63,7 +63,7 @@ let deferred_map_example () =
 
 (* Run the examples *)
 let _ = fork_example ()
-        >>= fun _ -> deferred_map_example ()
+        >>= fun _ -> deferred_map_example () 
 
 (** Start the async scheduler *)
 let _ =
