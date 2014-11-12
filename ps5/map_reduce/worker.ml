@@ -1,11 +1,44 @@
 open Async.Std
+open Protocol
 
 module Make (Job : MapReduce.Job) = struct
 
-  (* see .mli *)
-  let run r w =
-    failwith "Nowhere special?  I always wanted to go there."
+  module JobResponse = Protocol.WorkerResponse(Job)
+  module JobRequest = Protocol.WorkerRequest(Job)
 
+  let compute_single_request (r : Reader.t) (w : Writer.t) : unit Deferred.t = 
+    JobRequest.receive r 
+    >>= (fun res -> 
+      match res with
+      | `Eof -> failwith "Error, pipe is closed."
+      | `Ok (JobRequest.MapRequest input) -> 
+          let work = Job.map input in
+          try_with (fun () -> work) 
+          >>| (function
+          | Core.Std.Ok determined_work -> 
+              let response  = JobResponse.(MapResult determined_work) in
+              (JobResponse.send w response)
+          | Core.Std.Error ex -> 
+              let response = JobResponse.(JobFailed (Printexc.to_string ex)) in
+              (JobResponse.send w response))
+      | `Ok (JobRequest.ReduceRequest (key, lst)) ->
+          let work = Job.reduce (key, lst) in
+          try_with (fun () -> work) 
+          >>| (function
+          | Core.Std.Ok determined_work -> 
+              let response  = JobResponse.(ReduceResult determined_work) in
+              (JobResponse.send w response)
+          | Core.Std.Error ex -> 
+              let response = JobResponse.(JobFailed (Printexc.to_string ex)) in
+              (JobResponse.send w response)))
+
+  (* see .mli *)
+  let run (r : Reader.t) (w : Writer.t) : unit Deferred.t =
+    while true do
+      ignore( compute_single_request r w 
+      >>= (fun _ -> return ()))
+    done;
+    return ()
 end
 
 (* see .mli *)

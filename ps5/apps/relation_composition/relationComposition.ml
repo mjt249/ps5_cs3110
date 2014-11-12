@@ -5,17 +5,33 @@ type relation = R | S
 
 module Job = struct
   type input  = relation * string * string
-  type key    = unit (* TODO: choose an appropriate type *)
-  type inter  = unit (* TODO: choose an appropriate type *)
+  type key    = string
+  type inter  = relation * string
   type output = (string * string) list
 
   let name = "composition.job"
 
-  let map (r, x, y) =
-    failwith "TODO"
+  let rec cartesian_product l1 l2 acc =
+    match l1 with
+    | [] -> acc
+    | h::t -> cartesian_product t l2 ((List.map (fun y -> (h,y)) l2) @ acc)
 
-  let reduce (k, vs) =
-    failwith "TODO"
+  let rec partition_relation vs lr ls =
+    match vs with
+    | [] -> (lr, ls)
+    | h::t -> 
+        match h with
+        | (R, f) -> partition_relation t (f::lr) ls 
+        | (S, s) -> partition_relation t lr (s::ls)
+
+  let map (r, x, y) : (key * inter) list Deferred.t =
+    match r with
+    | R -> return ([(y, (r, x))]) 
+    | S -> return ([(x, (r, y))])
+
+  let reduce ((k: key), (vs: inter list)) : output Deferred.t =
+    let (lr, ls) = partition_relation vs [] [] in
+    return (cartesian_product lr ls [])
 end
 
 let () = MapReduce.register_job (module Job)
