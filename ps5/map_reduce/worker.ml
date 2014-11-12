@@ -6,11 +6,11 @@ module Make (Job : MapReduce.Job) = struct
   module JobResponse = Protocol.WorkerResponse(Job)
   module JobRequest = Protocol.WorkerRequest(Job)
 
-  let compute_single_request (r : Reader.t) (w : Writer.t) : unit Deferred.t = 
+  let rec compute_single_request (r : Reader.t) (w : Writer.t) : unit Deferred.t = 
     JobRequest.receive r 
     >>= (fun res -> 
       match res with
-      | `Eof -> failwith "Error, pipe is closed."
+      | `Eof -> failwith "Reader is closed."
       | `Ok (JobRequest.MapRequest input) -> 
           let work = Job.map input in
           try_with (fun () -> work) 
@@ -34,8 +34,8 @@ module Make (Job : MapReduce.Job) = struct
 
   (* see .mli *)
   let run (r : Reader.t) (w : Writer.t) : unit Deferred.t =
-    while true do
-      ignore( compute_single_request r w 
+    while (not (Reader.is_closed r)) do
+      don't_wait_for (compute_single_request r w 
       >>= (fun _ -> return ()))
     done;
     return ()
@@ -62,5 +62,4 @@ let init port =
   print_endline "registered jobs:";
   List.iter print_endline (MapReduce.list_jobs ());
   never ()
-
 
