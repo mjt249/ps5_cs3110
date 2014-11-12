@@ -75,10 +75,10 @@ module Make (Job : MapReduce.Job) = struct
       enqueues the worker to the map worker queue.*)
     let map_helper input = function
       (socket, reader, writer) -> 
-          Request.send w (Request.MapRequest input); 
+          Request.send writer (Request.MapRequest input); 
           num_mappers := !num_mappers +1; 
           num_idle := !num_idle -1;
-          return (push map_workers (input, (s, r, w))) in
+          return (push map_workers (input, (socket, reader, writer))) in
     
     (*The map portion of map reduce. Workers map all given inputs and the results
       are accumulated to be used in the reduce phase.*)
@@ -130,7 +130,7 @@ module Make (Job : MapReduce.Job) = struct
       key, inter list and enqueues the worker to the reduce worker queue.*)
     let reduce_helper key lst = function
       (socket, reader, writer) ->
-    	  Request.send w (Request.ReduceRequest (key, lst) );
+    	  Request.send writer (Request.ReduceRequest (key, lst) );
         num_reducers := !num_reducers +1;
         num_idle := !num_idle -1;
     	  return (push reduce_workers (key, lst, (socket, reader, writer))) in
@@ -170,7 +170,7 @@ module Make (Job : MapReduce.Job) = struct
           Response.receive reader >>= function
             |(`Ok (Response.ReduceResult output)) -> 
               reduced_result := ((key, output)::(!reduced_result));
-              push idle_workers (s, r, w); 
+              push idle_workers (socket, reader, writer); 
               num_idle := !num_idle +1;
               reduce_phase ()
             |(`Ok Response.MapResult _ )-> 
