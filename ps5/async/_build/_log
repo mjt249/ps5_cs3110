@@ -1,0 +1,18 @@
+### Starting build.
+# Target: examples.ml.depends, tags: { extension:ml, file:examples.ml, ocaml, ocamldep, package(async), package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o), thread }
+ocamlfind ocamldep -package async -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -modules examples.ml > examples.ml.depends # cached
+# Target: warmup.mli.depends, tags: { extension:mli, file:warmup.mli, ocaml, ocamldep, package(async), package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o), thread }
+ocamlfind ocamldep -package async -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -modules warmup.mli > warmup.mli.depends # cached
+# Target: warmup.cmi, tags: { byte, compile, extension:mli, file:warmup.mli, interf, ocaml, package(async), package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o), thread }
+ocamlfind ocamlc -c -warn-error +a-4-33-34-40-41-42-43-44 -thread -package async -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -o warmup.cmi warmup.mli # cached
+# Target: examples.cmo, tags: { byte, compile, extension:cmo, extension:ml, file:examples.cmo, file:examples.ml, implem, ocaml, package(async), package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o), thread }
+ocamlfind ocamlc -c -warn-error +a-4-33-34-40-41-42-43-44 -thread -package async -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -o examples.cmo examples.ml # cached
+# Target: examples.d.cmo, tags: { byte, compile, debug, extension:cmo, extension:ml, file:examples.d.cmo, file:examples.ml, implem, ocaml, package(async), package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o), thread }
+ocamlfind ocamlc -c -warn-error +a-4-33-34-40-41-42-43-44 -g -thread -package async -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -o examples.d.cmo examples.ml # cached
+# Target: warmup.ml.depends, tags: { extension:ml, file:warmup.ml, ocaml, ocamldep, package(async), package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o), thread }
+ocamlfind ocamldep -package async -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -modules warmup.ml > warmup.ml.depends
+# Target: warmup.d.cmo, tags: { byte, compile, debug, extension:cmo, extension:ml, file:warmup.d.cmo, file:warmup.ml, implem, ocaml, package(async), package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), quiet, syntax(camlp4o), thread }
+ocamlfind ocamlc -c -warn-error +a-4-33-34-40-41-42-43-44 -g -thread -package async -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck -syntax camlp4o -o warmup.d.cmo warmup.ml
+# Target: examples.d.byte, tags: { byte, debug, dont_link_with, extension:byte, file:examples.d.byte, link, ocaml, package(async), package(oUnit), package(pa_ounit), package(pa_ounit.syntax), package(qcheck), program, quiet, thread }
+ocamlfind ocamlc assertions.cma -linkpkg -g -thread -package async -package oUnit -package pa_ounit -package pa_ounit.syntax -package qcheck warmup.d.cmo examples.d.cmo -o examples.d.byte
+# Compilation successful.
