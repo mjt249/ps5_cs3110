@@ -1,0 +1,2 @@
+apps/inverted_index/data/U.S._INTEC_INC_lt_INTK_4TH_QTR_NET.txt
+apps/inverted_index/data/JAPAN_MOVES_TO_TIGHTEN_CHIP-EXPORT_CURBS.txt
