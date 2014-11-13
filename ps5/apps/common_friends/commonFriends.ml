@@ -6,31 +6,47 @@ module Job = struct
   type inter  = string list
   type output = string list
 
-  let rec find_other_nodes friendlist node : inter = 
+  (*
+   * Takes a list of nodes and a particular node. Returns the original list without
+   * all elements matching the input node.
+   * Args          : a string list, friendlist, and a node of type string.
+   * Preconditions : function must typecheck
+   * Postconditions: Output is a list of type inter matching friendlist not containing node
+   *)
+  let rec find_other_nodes (friendlist: string list) (node: string) : inter = 
     match friendlist with
     | [] -> []
     | hd::tl when hd <> node -> hd::(find_other_nodes tl node)
     | hd::tl -> find_other_nodes tl node
 
+  (*
+   * Takes a tuple of a string, and two identical string lists. Outputs a list of key, inter
+   * tuples corresponding to a key of the string matched with every element in the string 
+   * list with each combination's inter being a list of all the other strings in the string 
+   * list.  
+   * Args          : a string, name, and two identical string lists, friendlist_complete
+   *                 and friendlist_partial
+   * Preconditions : friendlist_partial and friendlist_complete must be identical
+   * Postconditions: Output is a list of key inter tuples. Each tuple contains name matched
+   *                 with one element from one of the friendlists and the inter is a list of
+   *                 the rest of the elements in friendlist
+   *)
   let rec compute_pairs (name, friendlist_complete, friendlist_partial) : (key * inter) list =
     match friendlist_partial with
     | [] -> []
     | hd::tl when compare name hd = -1 -> 
-       ((name, hd), (find_other_nodes friendlist_complete hd))::(compute_pairs (name, friendlist_complete, tl))
-    | hd::tl -> ((hd, name), find_other_nodes friendlist_complete hd)::(compute_pairs (name, friendlist_complete, tl))
+       ((name, hd), (find_other_nodes friendlist_complete hd))::(
+	compute_pairs (name, friendlist_complete, tl))
+    | hd::tl -> ((hd, name), find_other_nodes friendlist_complete hd)::(
+	       compute_pairs (name, friendlist_complete, tl))
 
   let name = "friends.job"
-  (* string * string list -> (key * inter) list Deferred.t  
-     gets passed name of root node and list of all connected nodes 
-     should I compute all pairs?
-   *)
-  
+ 
   let map (name, friendlist): (key * inter) list Deferred.t =
     let sorted_list = List.fast_sort compare friendlist in
     return (compute_pairs (name, sorted_list, sorted_list))
-
+  (* Performs the exact same as reduce, but output is of type output, not output Deferred.t *)
   let rec reduce_helper (pair, (friendlists: string list list)) : output= 
-    (* inter list should only ever have length 2 *)
     match friendlists with
     | [] -> []
     | []::[] -> []
@@ -40,16 +56,9 @@ module Job = struct
 			   else (if compare hd x = -1 then reduce_helper (pair, (tl::[x::xs]))
 			   else reduce_helper (pair, ((hd::tl)::[xs])))
     | _ -> failwith "Invalid list size"
-  (* (key * inter list) -> string list Deferred.t 
-     should take in lists of pairs and see if they match any other pair or something
-   *)
+  
   let reduce ((pair: key), (friendlists: inter list)) : output Deferred.t =
-    (* printf "Pair: (%s, %s):  " (fst pair) (snd pair);
-    List.iter (List.iter (printf "%s ")) friendlists;
-    printf "\n"; *)
-    return (reduce_helper (pair, friendlists)) 
-
-      
+    return (reduce_helper (pair, friendlists))       
 
 end
 
