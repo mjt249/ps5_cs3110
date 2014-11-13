@@ -3,7 +3,7 @@ open Async.Std
 let fork d f1 f2 : unit =
   let res = 
   d
-  >>= (fun x -> Deferred.both (f1 x) (f2 x))
+  >>= (fun x -> return ((f1 x), (f2 x)))
   >>= (fun _ -> return ())
   in
   don't_wait_for res
