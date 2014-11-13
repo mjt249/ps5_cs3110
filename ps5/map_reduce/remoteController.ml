@@ -82,49 +82,59 @@ module Make (Job : MapReduce.Job) = struct
     
     (*The map portion of map reduce. Workers map all given inputs and the results
       are accumulated to be used in the reduce phase.*)
-    let rec map_phase: unit -> unit Deferred.t = fun () ->
-      (*no idle workers and no workers mapping, so no workers available at all.
-        raise InfrastructureFailure.*)
-      if ((!num_idle = 0) && (!num_mappers = 0)) then
-        raise InfrastructureFailure
+    let rec map_phase: unit -> unit Deferred.t = 
+      while ( (!num_input <> 0) && (!num_mappers <> 0) ) do
+
+        (*no idle workers and no workers mapping, so no workers available at all.
+          raise InfrastructureFailure.*)
+        if ((!num_idle = 0) && (!num_mappers = 0)) then
+          raise InfrastructureFailure
+
+        (*still need to send map requests and there is a worker avaialbe.
+          send a map request.*)
+        else if ((!num_input > 0) && (!num_idle > 0)) then 
+          don't_wait_for (pop input_queue 
+          >>= (fun input ->
+          num_input := !num_input -1;
+          (pop idle_workers >>= map_helper input)))
+
+        (*no idle workers are available, or controller only has to read responses.
+          read from a worker that recieved a map request.*)
+        else if ((!num_input = 0) || (!num_idle = 0)) then
+          don't_wait_for (pop map_workers 
+          >>= fun (input, (socket, reader, writer)) -> 
+            num_mappers := !num_mappers - 1;
+            (Response.receive reader)
+            >>= function 
+              |(`Ok (Response.MapResult key_inter_pair_list)) -> 
+                !map_result 
+                >>= fun mappings -> 
+                map_result := return (key_inter_pair_list::mappings);
+                num_idle := !num_idle +1;
+                push idle_workers (socket, reader, writer); 
+                return ()
+              |(`Ok Response.ReduceResult _ )-> 
+                failwith "map queue is confused... it's reducing" 
+              | _ -> 
+                don't_wait_for (Writer.close writer);
+                push input_queue input;
+                num_input := !num_input +1;
+                return ())
+         else
+           failwith "map gone wrong" 
+      done;
+
       (*all inputs have been mapped and all workers are done mapping.
         flatten and combine the accumulated map_result so that they can
         be used in the reduce phase.*)
-      else if ((!num_input = 0) && (!num_mappers = 0)) then
-        !map_result >>= fun res_list ->
-        combined_result := ((!map_result) 
-                        >>| List.flatten
-                        >>| Combine.combine);
-        !combined_result >>= fun num -> 
-        num_keys := List.length(num);
-        Deferred.List.iter ~how:`Parallel num ~f: fun el -> return(push key_inter_queue el)
-      (*still need to send map requests and there is a worker avaialbe.
-        send a map request.*)
-      else if ((!num_input > 0) && (!num_idle > 0)) then 
-        pop input_queue >>= fun input ->
-        num_input := !num_input -1;
-        don't_wait_for(pop idle_workers >>= map_helper input);
-        map_phase () 
-      (*no idle workers are available, or controller only has to read responses.
-        read from a worker that recieved a map request.*)
-      else if ((!num_input = 0) || (!num_idle = 0)) then
-        pop map_workers >>= fun (input, (socket, reader, writer)) -> 
-          num_mappers := !num_mappers - 1;
-          (Response.receive reader)>>= function 
-            |(`Ok (Response.MapResult key_inter_pair_list)) -> 
-              !map_result >>= fun mappings -> 
-              map_result := return(key_inter_pair_list::mappings);
-              push idle_workers (socket, reader, writer); 
-              num_idle := !num_idle +1;
-              map_phase ()
-            |(`Ok Response.ReduceResult _ )-> 
-              failwith "map queue is confused... it's reducing" 
-            | _ -> don't_wait_for (Writer.close writer);
-                   push input_queue input;
-                   num_input := !num_input +1;
-                   map_phase()
-       else
-         failwith "map gone wrong" in
+      (fun () -> 
+      !map_result >>= fun res_list ->
+      combined_result := ((!map_result) 
+                      >>| List.flatten
+                      >>| Combine.combine);
+      !combined_result >>= fun num -> 
+      num_keys := List.length(num);
+      Deferred.List.iter ~how:`Parallel num ~f: fun el -> return(push key_inter_queue el)) in
 
     (*Dequeues an idle worker from idle queue, sends a reduce request of 
       key, inter list and enqueues the worker to the reduce worker queue.*)
@@ -140,6 +150,7 @@ module Make (Job : MapReduce.Job) = struct
       If all key inter pairs have sent to be reduced, and no reduce requests remain,
       close all connections of the idle workers and return the reduced result.*)
     let rec reduce_phase : unit -> (Job.key * Job.output) list Deferred.t = fun () ->
+
       (*all key inter pairs have been reduced but workers are still connected.
         close all connections.*)
       if ((!num_keys = 0) && (!num_reducers = 0) && (!num_idle > 0)) then 
@@ -147,14 +158,17 @@ module Make (Job : MapReduce.Job) = struct
         num_idle := !num_idle -1;
         don't_wait_for(Writer.close writer);
         reduce_phase ()
+
       (*all key inter pairs have been reduced and all workers are done reducing.
         return the accumulated result.*)
       else if ((!num_keys = 0) && (!num_reducers = 0) && (!num_idle = 0)) then 
         return(!reduced_result)
+
       (*no idle workers and no workers reducing, so no workers available at all.
         raise InfrastructureFailure.*)
       else if ((!num_idle = 0) && (!num_reducers = 0)) then
         raise InfrastructureFailure
+
       (*still need to send reduce requests and there is a worker avaialbe.
         send a reduce request.*)
       else if ((!num_keys > 0) && (!num_idle > 0)) then 
@@ -162,6 +176,7 @@ module Make (Job : MapReduce.Job) = struct
         num_keys := !num_keys -1;
         don't_wait_for(pop idle_workers >>= reduce_helper key lst);
         reduce_phase ()
+
       (*no idle workers are available, or controller only has to read responses.
         read from a worker that recieved a reduce request.*)
       else if ((!num_keys = 0) || (!num_idle = 0)) then
