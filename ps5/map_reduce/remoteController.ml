@@ -26,6 +26,11 @@ module Make (Job : MapReduce.Job) = struct
   module Request = WorkerRequest(Job)
   module Combine = Combiner.Make(Job)
 
+(**Originally, we opened our aqueue module at the top, but after reading
+   the instructor response at https://piazza.com/class/hxwbkpyfrcv2hw?cid=1467
+   we decided that it would be safe to copy and paste our aQueue implementation
+   here and use it instead.*)
+
 (** An asynchronous queue. 'a s can be pushed onto the queue; popping blocks
   until the queue is non-empty and then returns an element. *)
   type 'a t = 'a Pipe.Reader.t * 'a Pipe.Writer.t
