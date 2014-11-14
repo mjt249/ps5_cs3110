@@ -1,40 +1,40 @@
 open Async.Std
 open Protocol
+
 module Make (Job : MapReduce.Job) = struct
+
   module JobResponse = Protocol.WorkerResponse(Job)
   module JobRequest = Protocol.WorkerRequest(Job)
-  let rec compute_single_request (r : Reader.t) (w : Writer.t) : unit Deferred.t =
-    JobRequest.receive r
-    >>= (fun res ->
-	 match res with
-	 | `Eof -> failwith "Reader is closed."
-	 | `Ok (JobRequest.MapRequest input) ->
-	    let work = Job.map input in
-	    try_with (fun () -> work)
-	    >>| (function
-		  | Core.Std.Ok determined_work ->
-		     let response = JobResponse.(MapResult determined_work) in
-		     (JobResponse.send w response)
-		  | Core.Std.Error ex ->
-		     let response = JobResponse.(JobFailed (Printexc.to_string ex)) in
-		     (JobResponse.send w response))
-	 | `Ok (JobRequest.ReduceRequest (key, lst)) ->
-	    let work = Job.reduce (key, lst) in
-	    try_with (fun () -> work)
-	    >>| (function
-		  | Core.Std.Ok determined_work ->
-		     let response = JobResponse.(ReduceResult determined_work) in
-		     (JobResponse.send w response)
-		  | Core.Std.Error ex ->
-		     let response = JobResponse.(JobFailed (Printexc.to_string ex)) in
-		     (JobResponse.send w response)))
+
   (* see .mli *)
-  let run (r : Reader.t) (w : Writer.t) : unit Deferred.t =
-    while (not (Reader.is_closed r)) do
-      don't_wait_for (compute_single_request r w
-		      >>= (fun _ -> return ()))
-    done;
-    return ()
+  let rec run (r : Reader.t) (w : Writer.t) : unit Deferred.t =
+  JobRequest.receive r >>= (fun res -> 
+    match res with
+    | `Eof -> return() 
+    | `Ok (JobRequest.MapRequest input) -> 
+        let work = Job.map input in
+        try_with (fun () -> work) 
+        >>= (function
+        | Core.Std.Ok determined_work -> 
+            let response  = JobResponse.(MapResult determined_work) in
+            JobResponse.send w response;
+            run r w
+        | Core.Std.Error ex -> 
+            let response = JobResponse.(JobFailed (Printexc.to_string ex)) in
+            JobResponse.send w response;
+            run r w)
+    | `Ok (JobRequest.ReduceRequest (key, lst)) -> 
+        let work = Job.reduce (key, lst) in
+        try_with (fun () -> work) 
+        >>= (function
+        | Core.Std.Ok determined_work -> 
+            let response  = JobResponse.(ReduceResult determined_work) in
+            JobResponse.send w response;
+            run r w
+        | Core.Std.Error ex -> 
+            let response = JobResponse.(JobFailed (Printexc.to_string ex)) in
+            JobResponse.send w response;
+            run r w)) 
 end
 (* see .mli *)
 let init port =

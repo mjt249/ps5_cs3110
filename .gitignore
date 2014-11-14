@@ -1,3 +1,13 @@
 ps5/map_reduce/_build/*
 ps5/apps/common_friends/_build/*
+ps5/apps/common_friends/_cs3110/*
 ps5/async/_build/*
+ps5/async/_cs3110/*
+ps5/_build/*
+ps5/map_reduce/_cs3110/*
+ps5/_cs3110/*
+ps5/apps/inverted_index/_build/*
+ps5/apps/inverted_index/_cs3110/*
+ps5/apps/relation_composition/_build/*
+ps5/apps/relation_composition/_cs3110/*
+
