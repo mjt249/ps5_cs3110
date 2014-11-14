@@ -10,20 +10,39 @@ module Job = struct
   type output = (string * string) list
 
   let name = "composition.job"
-
+	       
+  (*
+   * Takes two lists and an empty list. Returns the cartesian product of the two 
+   * nonempty lists.
+   * Arguments     : l1, an 'a list, l2, an 'a list, and acc which is also an 'a list
+   * Preconditions : acc should be []
+   * Postconditions: output is a list of 'a * 'a tuples representing the cartesian
+   *                 product of l1 and l2
+   *)
   let rec cartesian_product l1 l2 acc =
     match l1 with
     | [] -> acc
     | h::t -> cartesian_product t l2 ((List.map (fun y -> (h,y)) l2) @ acc)
-
+  
+  (*
+   * Takes a list of relation * string tuples and two empty lists. Returns a 
+   * string list * string list tuple representing all string values paired with S on 
+   * the right side and all string values paired with R on the left.
+   * Arguments     : an inter list vs, and two string lists, lr and ls
+   * Preconditions : lr and ls should be []
+   * Postconditions: Output is a string list * string list representing all string 
+   * values paired with S on the right side and all string values paired with R on the left.
+   *)
   let rec partition_relation vs lr ls =
     match vs with
     | [] -> (lr, ls)
-    | h::t -> 
-        match h with
+    | (R,f)::t -> partition_relation t (f::lr) ls 
+    | (S,s)::t -> partition_relation t lr (s::ls)
+        (*
+	match h with
         | (R, f) -> partition_relation t (f::lr) ls 
         | (S, s) -> partition_relation t lr (s::ls)
-
+         *)
   let map (r, x, y) : (key * inter) list Deferred.t =
     match r with
     | R -> return ([(y, (r, x))]) 
